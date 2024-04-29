@@ -1,0 +1,12 @@
+annotated-types==0.6.0
+async-timeout==4.0.3
+asyncpg==0.29.0
+dnspython==2.6.1
+Faker==24.14.0
+motor==3.4.0
+pydantic==2.7.1
+pydantic_core==2.18.2
+pymongo==4.7.0
+python-dateutil==2.9.0.post0
+six==1.16.0
+typing_extensions==4.11.0
