@@ -16,6 +16,19 @@ from models.entities.user import User
 from params import AMOUNT_USERS_SEED
 
 async def seed_mongo(name_process: str):
+    """
+    Seed MongoDB with user data.
+
+    Args:
+        name_process (str): The name of the process.
+
+    Returns:
+        str: A message indicating the number of users created in MongoDB.
+
+    Raises:
+        Exception: If an error occurs while seeding MongoDB.
+
+    """
     try:
         logging.info(f"Connecting to MongoDB... {name_process}")        
         

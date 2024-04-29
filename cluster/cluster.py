@@ -8,7 +8,27 @@ from utils.print_progress_bar import print_progress_bar
 from params import AMOUNT_USERS
 
 class ClusterMigration:
-    
+    """
+    Represents a cluster migration process.
+
+    Args:
+        backend_task (callable): The backend task to be executed by each worker process.
+        cluster_size (int): The number of worker processes in the cluster.
+
+    Attributes:
+        __worker_pipes (list): List of parent connections to worker processes.
+        __processes (list): List of worker processes.
+        __progress (int): The current progress of the migration process.
+        __count (int): The count of data sent to worker processes.
+
+    Methods:
+        _start_worker_process: Starts a worker process and executes the backend task.
+        _print_progress: Prints the progress of the migration process.
+        initialize_processes: Initializes the worker processes.
+        start_process: Sends data to the worker processes.
+        awaiting_completion_processes: Stops the worker processes and waits for them to complete.
+    """
+
     def __init__(self, backend_task, cluster_size):
         self.backend_task = backend_task
         self.cluster_size = cluster_size
@@ -63,5 +83,5 @@ class ClusterMigration:
         
         # Esperar que todos os processos filhos terminem    
         for proc in self.__processes:
-            proc.join()        
+            proc.join()
     

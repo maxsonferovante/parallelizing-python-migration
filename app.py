@@ -25,6 +25,19 @@ def start_worker_process(child_conn):
         
 
 async def main():
+    """
+    This is the main function that performs the migration process from MongoDB to Postgres.
+
+    It connects to the MongoDB and Postgres databases, initializes the repositories, drops and creates the Postgres table,
+    retrieves data from MongoDB in paginated form, and sends the data to child processes for further processing.
+
+    After all the data has been processed, it prints the total time taken for the migration and the total number of users
+    in the Postgres database.
+
+    Raises:
+        Exception: If any error occurs during the migration process.
+
+    """
     try:
         
         db_mongo_connection_handler.connect_to_db()
