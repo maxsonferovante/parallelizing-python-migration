@@ -2,7 +2,7 @@
 
 ## Descrição do Projeto
 
-Este projeto foi inspirado no vídeo de [Erick Wendel](https://www.youtube.com/watch?v=EnK8-x8L9TY&t=932s), em que é implementa um sistema de migração projetado para transferir dados de usuários de um banco de dados MongoDB para um banco de dados PostgreSQL. Ele utiliza processamento assíncrono, multiprocessamento e uma abordagem baseada em cluster para lidar eficientemente com grandes conjuntos de dados, neste caso, até 1.000.000 de usuários. O sistema aproveita o processamento paralelo e técnicas de processamento em lotes. O projeto base usa (Javascript) NodeJs e solução proposta neste repositório usa Python 3.11.
+Este projeto foi inspirado no vídeo de [Erick Wendel](https://www.youtube.com/watch?v=EnK8-x8L9TY&t=932s), em que implementa um sistema de migração projetado para transferir dados de usuários de um banco de dados MongoDB para um banco de dados PostgreSQL. Ele utiliza processamento assíncrono, multiprocessamento e uma abordagem baseada em cluster para lidar eficientemente com grandes conjuntos de dados, neste caso, até 1.000.000 de usuários. O sistema aproveita o processamento paralelo e técnicas de processamento em lotes. O projeto base usa (Javascript) NodeJs e solução proposta neste repositório usa Python 3.11.
 
 
 ## Pré-requisitos
