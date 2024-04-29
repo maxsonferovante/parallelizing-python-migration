@@ -1,0 +1,20 @@
+version: "3.5"
+
+services:
+  mongodb:
+    image: mongo
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: maxsonferovante
+      MONGO_INITDB_ROOT_PASSWORD: mypassword
+
+  postgres:
+    image: postgres:latest
+    container_name: paralleis-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: school
+      POSTGRES_USER: maxsonferovante
+      POSTGRES_PASSWORD: mypassword
