@@ -32,6 +32,19 @@ O comportamento do sistema pode ser personalizado através dos seguintes parâme
 
 ## Componentes Principais
 
+### Migração em Cluster
+
+`ClusterMigration` lida com a distribuição de dados para os processos de trabalho e garante que todos os processos estejam corretamente sincronizados e gerenciados:
+
+- Inicializa os processos de trabalho e configura os canais de comunicação.
+- Implementa a distribuição de dados para os processos de trabalho em round-robin.
+- Monitora e relata o progresso da migração.
+
+```python
+clusterMigration = ClusterMigration(backend_task=backend_task, cluster_size=CLUSTER_SIZE)
+await clusterMigration.initialize_processes()
+```
+
 ### Lógica Principal de Migração
 
 A funcionalidade central está encapsulada na função `main()` em `app.py` que orquestra todo o processo de migração:
@@ -47,19 +60,6 @@ A funcionalidade central está encapsulada na função `main()` em `app.py` que 
 async for page_of_users in user_mongo_repository.get_all_paginated(skip=0, limit=ITEMS_PER_PAGE):
     users = [user for user in page_of_users]
     await clusterMigration.start_process(users)
-```
-
-### Migração em Cluster
-
-`ClusterMigration` lida com a distribuição de dados para os processos de trabalho e garante que todos os processos estejam corretamente sincronizados e gerenciados:
-
-- Inicializa os processos de trabalho e configura os canais de comunicação.
-- Implementa a distribuição de dados para os processos de trabalho em round-robin.
-- Monitora e relata o progresso da migração.
-
-```python
-clusterMigration = ClusterMigration(backend_task=backend_task, cluster_size=CLUSTER_SIZE)
-await clusterMigration.initialize_processes()
 ```
 
 ### Processos de Trabalho
