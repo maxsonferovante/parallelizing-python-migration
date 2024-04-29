@@ -5,7 +5,7 @@ import multiprocessing
 
 from utils.print_progress_bar import print_progress_bar
 
-from params import AMOUNT_USERS
+from params import AMOUNT_USERS, ITEMS_PER_PAGE
 
 class ClusterMigration:
     """
@@ -36,7 +36,7 @@ class ClusterMigration:
         self.__worker_pipes = []
         self.__processes = []
         
-        self.__progress = 0
+        self.__progress = ITEMS_PER_PAGE
         self.__count = 0
               
     
