@@ -73,10 +73,13 @@ async def main():
         async for page_of_users in user_mongo_repository.get_all_paginated(
             skip=0, limit=ITEMS_PER_PAGE
         ):
-            users = [user for user in page_of_users]
+            users_tuples = [
+                (user["username"], user["email"], user["age"])
+                for user in page_of_users
+            ]
 
             # Enviar dados para os processos filhos usando o round-robin
-            await clusterMigration.start_process(users)
+            await clusterMigration.start_process(users_tuples)
 
         # Enviar uma mensagem vazia para os processos filhos pararem de esperar por dados
         # Esperar que todos os processos filhos terminem

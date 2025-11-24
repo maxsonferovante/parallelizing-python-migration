@@ -29,3 +29,17 @@ class UserPostgresRepository:
 
     async def count_users(self):
         return await self.conn.fetchval("""SELECT COUNT(*) FROM users""")
+
+    async def insert_many_users(self, users_data: list[tuple]):
+        """
+        Insere múltiplos usuários em massa usando COPY do PostgreSQL.
+        Muito mais rápido que inserções individuais.
+        
+        Args:
+            users_data: Lista de tuplas no formato [(username, email, age), ...]
+        """
+        await self.conn.copy_records_to_table(
+            'users',
+            records=users_data,
+            columns=['username', 'email', 'age']
+        )
