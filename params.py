@@ -2,12 +2,12 @@
 This module contains the configuration parameters for the application.
 """
 
-ITEMS_PER_PAGE = 8000
+ITEMS_PER_PAGE = 10000
 """
 The number of items to display per page in the application.
 """
 
-CLUSTER_SIZE = 90
+CLUSTER_SIZE = 50
 """
 The size of the cluster used for parallel processing.
 """

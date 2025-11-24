@@ -1,7 +1,8 @@
 import time
 import sys
 
-def print_progress_bar(iteration, total, prefix='', suffix='', length=50, fill='█'):
+
+def print_progress_bar(iteration, total, prefix="", suffix="", length=50, fill="█"):
     """
     Call in a loop to create terminal progress bar
     @params:
@@ -14,13 +15,14 @@ def print_progress_bar(iteration, total, prefix='', suffix='', length=50, fill='
     """
     percent = ("{0:.1f}").format(100 * (iteration / float(total)))
     filled_length = int(length * iteration // total)
-    bar = fill * filled_length + '-' * (length - filled_length)
-    sys.stdout.write(f'\r{prefix} |{bar}| {percent}% {suffix}')
+    bar = fill * filled_length + "-" * (length - filled_length)
+    sys.stdout.write(f"\r{prefix} |{bar}| {percent}% {suffix}")
     sys.stdout.flush()
     # Print New Line on Complete
-    if iteration == total: 
+    if iteration == total:
         print()
-        
+
+
 # # Test the progress bar function
 # if __name__ == "__main__":
 #     items = list(range(0, 57))
