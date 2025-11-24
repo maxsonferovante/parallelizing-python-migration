@@ -1,68 +1,93 @@
 import asyncio
 import logging
-import time
 import multiprocessing
+import threading
+import queue
+from abc import ABC, abstractmethod
+from typing import Callable, Union
 
 from utils.print_progress_bar import print_progress_bar
+from params import AMOUNT_USERS, ITEMS_PER_PAGE, ClusterImplementation
 
-from params import AMOUNT_USERS, ITEMS_PER_PAGE
 
-
-class ClusterMigration:
+class ClusterMigrationBase(ABC):
     """
-    Represents a cluster migration process.
-
-    Args:
-        backend_task (callable): The backend task to be executed by each worker process.
-        cluster_size (int): The number of worker processes in the cluster.
-
-    Attributes:
-        __worker_pipes (list): List of parent connections to worker processes.
-        __processes (list): List of worker processes.
-        __progress (int): The current progress of the migration process.
-        __count (int): The count of data sent to worker processes.
-
-    Methods:
-        _start_worker_process: Starts a worker process and executes the backend task.
-        _print_progress: Prints the progress of the migration process.
-        initialize_processes: Initializes the worker processes.
-        start_process: Sends data to the worker processes.
-        awaiting_completion_processes: Stops the worker processes and waits for them to complete.
+    Classe base abstrata para implementações de cluster de migração.
+    Define a interface comum para multiprocessing e threading.
     """
 
-    def __init__(self, backend_task, cluster_size):
+    def __init__(self, backend_task: Callable, cluster_size: int):
         self.backend_task = backend_task
         self.cluster_size = cluster_size
-
-        self.__worker_pipes = []
-        self.__processes = []
-
-        self.__progress = ITEMS_PER_PAGE
-        self.__count = 0
-
-    def _start_worker_process(self, child_conn):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(self.backend_task(child_conn))
-        loop.close()
+        self._progress = ITEMS_PER_PAGE
+        self._count = 0
 
     def _print_progress(self):
+        """Imprime a barra de progresso."""
         print_progress_bar(
-            self.__progress,
+            self._progress,
             AMOUNT_USERS,
             prefix="Progress:",
             suffix="Complete",
             length=60,
         )
 
+    @abstractmethod
     async def initialize_processes(self):
+        """Inicializa os workers (processos ou threads)."""
+        pass
+
+    async def start_process(self, data):
+        """Envia dados para os workers usando round-robin."""
+        self._send_data_to_worker(data)
+        self._count += 1
+        self._print_progress()
+        self._progress += ITEMS_PER_PAGE
+
+    @abstractmethod
+    def _send_data_to_worker(self, data):
+        """Envia dados para um worker específico."""
+        pass
+
+    @abstractmethod
+    def awaiting_completion_processes(self):
+        """Aguarda todos os workers terminarem."""
+        pass
+
+    @abstractmethod
+    def _stop_all_workers(self):
+        """Envia sinal de parada para todos os workers."""
+        pass
+
+
+class ClusterMigrationMultiprocessing(ClusterMigrationBase):
+    """
+    Implementação de cluster usando multiprocessing.
+    Ideal para isolamento completo entre workers.
+    """
+
+    def __init__(self, backend_task: Callable, cluster_size: int):
+        super().__init__(backend_task, cluster_size)
+        self.__worker_pipes = []
+        self.__processes = []
+
+    def _start_worker_process(self, child_conn):
+        """Inicia um processo worker com seu próprio event loop."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.backend_task(child_conn))
+        loop.close()
+
+    async def initialize_processes(self):
+        """Inicializa os processos workers."""
+        logging.info(f"Initializing {self.cluster_size} processes")
         for index in range(self.cluster_size):
             parent_conn, child_conn = multiprocessing.Pipe()
 
             proc = multiprocessing.Process(
                 target=self._start_worker_process,
                 args=(child_conn,),
-                name=f"worker-{index   + 1}",
+                name=f"worker-{index + 1}",
             )
             proc.start()
             self.__worker_pipes.append(parent_conn)
@@ -71,22 +96,116 @@ class ClusterMigration:
             child_conn.close()
         await asyncio.sleep(2)
 
-    async def start_process(self, data):
-        # Enviar dados para os processos filhos usando o round-robin
-        parent_conn = self.__worker_pipes[self.__count % len(self.__worker_pipes)]
+    def _send_data_to_worker(self, data):
+        """Envia dados para um processo worker usando round-robin."""
+        parent_conn = self.__worker_pipes[self._count % len(self.__worker_pipes)]
         parent_conn.send(data)
 
-        self.__count += 1
-
-        self._print_progress()
-
-        self.__progress += ITEMS_PER_PAGE
-
-    def awaiting_completion_processes(self):
-        # Enviar uma mensagem vazia para os processos filhos pararem de esperar por dados
+    def _stop_all_workers(self):
+        """Envia mensagem vazia para todos os processos pararem."""
         for parent_conn in self.__worker_pipes:
             parent_conn.send([])
 
-        # Esperar que todos os processos filhos terminem
+    def awaiting_completion_processes(self):
+        """Aguarda todos os processos terminarem."""
+        self._stop_all_workers()
         for proc in self.__processes:
             proc.join()
+
+
+class ClusterMigrationThreading(ClusterMigrationBase):
+    """
+    Implementação de cluster usando threading.
+    Ideal para tarefas I/O-bound, com menor overhead e sem serialização.
+    """
+
+    def __init__(self, backend_task: Callable, cluster_size: int):
+        super().__init__(backend_task, cluster_size)
+        self.__worker_queues = []
+        self.__threads = []
+
+    def _start_worker_thread(self, data_queue: queue.Queue):
+        """Inicia uma thread worker com seu próprio event loop."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.backend_task(data_queue))
+        loop.close()
+
+    async def initialize_processes(self):
+        """Inicializa as threads workers."""
+        logging.info(f"Initializing {self.cluster_size} threads")
+        for index in range(self.cluster_size):
+            data_queue = queue.Queue()
+
+            thread = threading.Thread(
+                target=self._start_worker_thread,
+                args=(data_queue,),
+                name=f"worker-{index + 1}",
+                daemon=False
+            )
+            thread.start()
+
+            self.__worker_queues.append(data_queue)
+            self.__threads.append(thread)
+
+        await asyncio.sleep(0.5)
+
+    def _send_data_to_worker(self, data):
+        """Envia dados para uma thread worker usando round-robin."""
+        worker_queue = self.__worker_queues[self._count % len(self.__worker_queues)]
+        worker_queue.put(data)
+
+    def _stop_all_workers(self):
+        """Envia mensagem vazia para todas as threads pararem."""
+        for worker_queue in self.__worker_queues:
+            worker_queue.put([])
+
+    def awaiting_completion_processes(self):
+        """Aguarda todas as threads terminarem."""
+        self._stop_all_workers()
+        for thread in self.__threads:
+            thread.join()
+
+
+class ClusterMigrationFactory:
+    """
+    Factory para criar instâncias de ClusterMigration.
+    Suporta 'multiprocessing' e 'threading'.
+    """
+
+    @staticmethod
+    def create(
+        backend_task: Callable,
+        cluster_size: int,
+        implementation: Union[ClusterImplementation, str] = ClusterImplementation.MULTIPROCESSING
+    ) -> ClusterMigrationBase:
+        """
+        Cria uma instância de ClusterMigration baseada no tipo especificado.
+
+        Args:
+            backend_task: Função async a ser executada pelos workers
+            cluster_size: Número de workers
+            implementation: ClusterImplementation enum ou string ('multiprocessing' ou 'threading')
+
+        Returns:
+            Instância de ClusterMigrationBase
+
+        Raises:
+            ValueError: Se o tipo de implementação não for suportado
+        """
+        # Converte enum para string se necessário
+        if isinstance(implementation, ClusterImplementation):
+            implementation_value = implementation.value
+        else:
+            implementation_value = implementation.lower()
+
+        if implementation_value == "multiprocessing":
+            return ClusterMigrationMultiprocessing(backend_task, cluster_size)
+        elif implementation_value == "threading":
+            return ClusterMigrationThreading(backend_task, cluster_size)
+        else:
+            raise ValueError(
+                f"Implementação '{implementation_value}' não suportada. "
+                "Use ClusterImplementation.MULTIPROCESSING, ClusterImplementation.THREADING, "
+                "'multiprocessing' ou 'threading'."
+            )

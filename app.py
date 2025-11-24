@@ -7,16 +7,9 @@ from models.settings.mongo.connection import db_mongo_connection_handler
 from models.repository.user_mongo_repository import UserMongoRepository
 from models.repository.user_postgres_repository import UserPostgresRepository
 from models.entities.user import User
-from cluster.cluster import ClusterMigration
+from cluster.cluster import ClusterMigrationFactory
 from background_task import backend_task
-from params import CLUSTER_SIZE, ITEMS_PER_PAGE
-
-
-def start_worker_process(child_conn):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(backend_task(child_conn))
-    loop.close()
+from params import CLUSTER_SIZE, ITEMS_PER_PAGE, CLUSTER_IMPLEMENTATION
 
 
 async def main():
@@ -53,9 +46,14 @@ async def main():
             f"Total de usuários cadastrados no MongoDB: {await user_mongo_repository.count_documents()}"
         )
 
-        clusterMigration = ClusterMigration(
-            backend_task=backend_task, cluster_size=CLUSTER_SIZE
+        # Usa factory para criar a instância do cluster baseada na configuração
+        clusterMigration = ClusterMigrationFactory.create(
+            backend_task=backend_task,
+            cluster_size=CLUSTER_SIZE,
+            implementation=CLUSTER_IMPLEMENTATION
         )
+        
+        print(f"Usando implementação: {CLUSTER_IMPLEMENTATION.name} com {CLUSTER_SIZE} workers")
 
         start_time = time.time()
 

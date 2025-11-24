@@ -2,6 +2,16 @@
 This module contains the configuration parameters for the application.
 """
 import multiprocessing
+from enum import Enum
+
+
+class ClusterImplementation(Enum):
+    """
+    Enum para tipos de implementação do cluster de migração.
+    """
+    MULTIPROCESSING = "multiprocessing"
+    THREADING = "threading"
+
 
 # Calcula o número de cores físicos da máquina
 CPU_CORES = multiprocessing.cpu_count()
@@ -19,6 +29,15 @@ maximiza o paralelismo.
 """
 CLUSTER_SIZE = CPU_CORES * CLUSTER_SIZE_MULTIPLIER
 
+# Tipo de implementação do cluster
+# THREADING é recomendado para tarefas I/O-bound (menor overhead, sem serialização)
+# MULTIPROCESSING oferece maior isolamento entre workers
+CLUSTER_IMPLEMENTATION = ClusterImplementation.THREADING
+"""
+Tipo de implementação do cluster de migração.
+- ClusterImplementation.THREADING: Usa threads (recomendado para I/O-bound, menor overhead)
+- ClusterImplementation.MULTIPROCESSING: Usa processos (maior isolamento, requer serialização)
+"""
 
 ITEMS_PER_PAGE = 10000
 """
