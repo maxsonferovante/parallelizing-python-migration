@@ -1,23 +1,15 @@
 import asyncio
 import time
-import multiprocessing
 
-from models.settings.postgres.connection import (
-    db_postgres_connection_handler,
-    PostgresConnectionHandler,
-)
+from models.settings.postgres.connection import db_postgres_connection_handler
 from models.settings.mongo.connection import db_mongo_connection_handler
 
 from models.repository.user_mongo_repository import UserMongoRepository
 from models.repository.user_postgres_repository import UserPostgresRepository
 from models.entities.user import User
-
 from cluster.cluster import ClusterMigration
-
 from background_task import backend_task
-
-from utils.print_progress_bar import print_progress_bar
-from params import CLUSTER_SIZE, ITEMS_PER_PAGE, AMOUNT_USERS
+from params import CLUSTER_SIZE, ITEMS_PER_PAGE
 
 
 def start_worker_process(child_conn):
@@ -89,6 +81,7 @@ async def main():
         print(
             f"Total de usuários cadastrados no Postgres: {await user_postgres_repository.count_users()}"
         )
+
 
     except Exception as e:
         print(e)
