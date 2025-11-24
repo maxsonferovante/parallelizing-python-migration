@@ -148,7 +148,7 @@ class ClusterMigrationThreading(ClusterMigrationBase):
             self.__worker_queues.append(data_queue)
             self.__threads.append(thread)
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(2)
 
     def _send_data_to_worker(self, data):
         """Envia dados para uma thread worker usando round-robin."""
