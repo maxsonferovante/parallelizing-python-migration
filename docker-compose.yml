@@ -3,11 +3,28 @@ version: "3.5"
 services:
   mongodb:
     image: mongo
+    container_name: paralleis-mongodb
     ports:
       - 27017:27017
     environment:
       MONGO_INITDB_ROOT_USERNAME: maxsonferovante
       MONGO_INITDB_ROOT_PASSWORD: mypassword
+    # Limites conservadores de recursos
+    mem_limit: 512m          # Limite de 512MB de memória
+    mem_reservation: 256m    # Reserva mínima de 256MB
+    cpus: 0.5                # Limite de 0.5 cores (50% de 1 core)
+    # Healthcheck para monitorar o serviço
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Política de reinicialização
+    restart: unless-stopped
+    # Volumes para persistência de dados
+    volumes:
+      - mongodb_data:/data/db
 
   postgres:
     image: postgres:latest
@@ -18,3 +35,26 @@ services:
       POSTGRES_DB: school
       POSTGRES_USER: maxsonferovante
       POSTGRES_PASSWORD: mypassword
+    # Limites conservadores de recursos
+    mem_limit: 512m          # Limite de 512MB de memória
+    mem_reservation: 256m    # Reserva mínima de 256MB
+    cpus: 0.5                # Limite de 0.5 cores (50% de 1 core)
+    # Healthcheck para monitorar o serviço
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxsonferovante -d school"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Política de reinicialização
+    restart: unless-stopped
+    # Volumes para persistência de dados
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# Volumes nomeados para persistência de dados
+volumes:
+  mongodb_data:
+    driver: local
+  postgres_data:
+    driver: local

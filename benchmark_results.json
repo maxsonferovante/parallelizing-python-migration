@@ -1,0 +1,39 @@
+{
+  "benchmark_date": "2025-11-30T18:20:17.585986",
+  "config": {
+    "cluster_size": 32,
+    "items_per_page": 10000
+  },
+  "results": [
+    {
+      "implementation": "ASYNCIO",
+      "execution_time": 22.13,
+      "users_migrated": 1000000,
+      "cluster_size": 32,
+      "items_per_page": 10000,
+      "error": false,
+      "error_message": null,
+      "timestamp": "2025-11-30T18:19:23.762626"
+    },
+    {
+      "implementation": "THREADING",
+      "execution_time": 23.79,
+      "users_migrated": 1000000,
+      "cluster_size": 32,
+      "items_per_page": 10000,
+      "error": false,
+      "error_message": null,
+      "timestamp": "2025-11-30T18:19:50.559277"
+    },
+    {
+      "implementation": "MULTIPROCESSING",
+      "execution_time": 24.01,
+      "users_migrated": 1000000,
+      "cluster_size": 32,
+      "items_per_page": 10000,
+      "error": false,
+      "error_message": null,
+      "timestamp": "2025-11-30T18:20:17.582080"
+    }
+  ]
+}
