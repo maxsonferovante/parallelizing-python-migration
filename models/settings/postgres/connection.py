@@ -1,4 +1,3 @@
-import asyncio
 import asyncpg
 
 from models.settings.config import POSTGRES_CONFIG
