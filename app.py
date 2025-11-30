@@ -73,7 +73,7 @@ async def main():
 
         # Enviar uma mensagem vazia para os processos filhos pararem de esperar por dados
         # Esperar que todos os processos filhos terminem
-        clusterMigration.awaiting_completion_processes()
+        await clusterMigration.awaiting_completion_processes()
 
         print(f" Time: { ((time.time() - start_time))}")
         print(

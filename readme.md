@@ -2,13 +2,14 @@
 
 ## Descrição do Projeto
 
-Este projeto implementa um sistema de migração de dados otimizado para transferir grandes volumes de dados do MongoDB para PostgreSQL. Inspirado no vídeo de [Erick Wendel](https://www.youtube.com/watch?v=EnK8-x8L9TY&t=932s), a solução utiliza processamento paralelo assíncrono com suporte a **multiprocessing** e **threading**, processamento em lotes (batch) e otimizações de performance para lidar eficientemente com milhões de registros.
+Este projeto implementa um sistema de migração de dados otimizado para transferir grandes volumes de dados do MongoDB para PostgreSQL. Inspirado no vídeo de [Erick Wendel](https://www.youtube.com/watch?v=EnK8-x8L9TY&t=932s), a solução utiliza processamento paralelo assíncrono com suporte a **asyncio**, **multiprocessing** e **threading**, processamento em lotes (batch) e otimizações de performance para lidar eficientemente com milhões de registros.
 
 ### Características Principais
 
-- ✅ **Processamento Paralelo**: Suporte a multiprocessing e threading via Factory Pattern
+- ✅ **Processamento Paralelo**: Suporte a asyncio (padrão), multiprocessing e threading via Factory Pattern
 - ✅ **Otimizações de Performance**: Bulk insert usando [`COPY`](https://magicstack.github.io/asyncpg/current/api/index.html) do PostgreSQL
 - ✅ **Cálculo Automático**: Tamanho do cluster calculado automaticamente baseado no número de cores da CPU
+- ✅ **Implementação Asyncio**: Versão simplificada usando apenas asyncio, ideal para tarefas I/O-bound
 
 ## Pré-requisitos
 
@@ -53,6 +54,22 @@ Para gerar dados de teste no MongoDB:
     uv run seed.py
 ```
 
+### Executando Benchmark de Performance
+
+Para comparar o desempenho dos três modos de implementação (ASYNCIO, THREADING, MULTIPROCESSING):
+
+```bash
+    uv run benchmark.py
+```
+
+O script executa cada modo sequencialmente e exibe:
+- Tempo de execução de cada modo
+- Número de usuários migrados
+- Comparação de performance entre os modos
+- Resultados salvos em `benchmark_results.json`
+
+**Nota:** O benchmark limpa e recria a tabela do PostgreSQL antes de cada execução para garantir condições iguais.
+
 ## Configuração
 
 O comportamento do sistema pode ser personalizado através dos parâmetros em `params.py`:
@@ -60,7 +77,8 @@ O comportamento do sistema pode ser personalizado através dos parâmetros em `p
 ### Parâmetros Principais
 
 - **`CLUSTER_IMPLEMENTATION`**: Tipo de implementação do cluster
-  - `ClusterImplementation.THREADING` (padrão): Usa threads - recomendado para tarefas I/O-bound
+  - `ClusterImplementation.ASYNCIO` (padrão): Usa apenas asyncio - recomendado para tarefas I/O-bound, menor overhead
+  - `ClusterImplementation.THREADING`: Usa threads - menor overhead, sem serialização
   - `ClusterImplementation.MULTIPROCESSING`: Usa processos - maior isolamento entre workers
   
 - **`CLUSTER_SIZE`**: Número de workers paralelos (calculado automaticamente)
@@ -77,7 +95,7 @@ O comportamento do sistema pode ser personalizado através dos parâmetros em `p
 
 ```python
 # params.py
-CLUSTER_IMPLEMENTATION = ClusterImplementation.THREADING
+CLUSTER_IMPLEMENTATION = ClusterImplementation.ASYNCIO  # Padrão: asyncio
 CLUSTER_SIZE_MULTIPLIER = 3  # 3x o número de cores
 ITEMS_PER_PAGE = 10000
 ```
@@ -90,8 +108,9 @@ O projeto utiliza um padrão **Factory** com classes base abstratas:
 
 ```
 ClusterMigrationBase (ABC)
-├── ClusterMigrationMultiprocessing
-└── ClusterMigrationThreading
+├── ClusterMigrationAsyncio (padrão)
+├── ClusterMigrationThreading
+└── ClusterMigrationMultiprocessing
 
 ClusterMigrationFactory
 └── create() -> ClusterMigrationBase
@@ -116,17 +135,27 @@ cluster = ClusterMigrationFactory.create(
 
 #### Cluster de Migração
 
-**ClusterMigrationThreading** (Recomendado para I/O-bound):
+**ClusterMigrationAsyncio** (Padrão - Recomendado para I/O-bound):
+- Usa `asyncio.create_task()` e `asyncio.Queue`
+- Menor overhead de criação
+- Sem necessidade de serialização (pickle)
+- Todas as tasks rodam no mesmo event loop
+- Comunicação assíncrona nativa
+- Máxima simplicidade e performance para I/O-bound
+
+**ClusterMigrationThreading**:
 - Usa `threading.Thread` e `queue.Queue`
 - Menor overhead de criação
 - Sem necessidade de serialização (pickle)
 - Compartilhamento de memória
+- Cada thread tem seu próprio event loop
 
 **ClusterMigrationMultiprocessing**:
 - Usa `multiprocessing.Process` e `multiprocessing.Pipe`
 - Maior isolamento entre workers
 - Requer serialização dos dados
 - Melhor para tarefas CPU-bound
+- Cada processo tem seu próprio event loop
 
 #### Workers (`background_task.py`)
 
@@ -167,7 +196,7 @@ async def main():
         await cluster.start_process(users_tuples)
     
     # 6. Aguarda conclusão
-    cluster.awaiting_completion_processes()
+    await cluster.awaiting_completion_processes()
 ```
 
 ## Otimizações de Performance
@@ -183,22 +212,26 @@ CLUSTER_SIZE = CPU_CORES * 3  # 3x para I/O-bound tasks
 
 Evita context switching excessivo enquanto maximiza paralelismo.
 
-## Comparação: Threading vs Multiprocessing
+## Comparação: Asyncio vs Threading vs Multiprocessing
 
-| Aspecto | Threading | Multiprocessing |
-|--------|-----------|-----------------|
-| **Overhead** | Menor | Maior |
-| **Serialização** | Não necessária | Necessária (pickle) |
-| **Isolamento** | Baixo | Alto |
-| **Memória** | Compartilhada | Separada |
-| **Ideal para** | I/O-bound | CPU-bound |
-| **Recomendado** | ✅ Sim (padrão) | Para casos específicos |
+| Aspecto | **Asyncio** | Threading | Multiprocessing |
+|--------|-------------|-----------|----------------|
+| **Overhead** | **Muito Baixo** | Baixo | Alto |
+| **Serialização** | **Não necessária** | Não necessária | Necessária (pickle) |
+| **Isolamento** | Baixo (mesmo processo) | Baixo | Alto |
+| **Memória** | **Compartilhada** | Compartilhada | Separada |
+| **Event Loop** | **Um único** | Múltiplos | Múltiplos |
+| **Comunicação** | **asyncio.Queue (nativo)** | queue.Queue | multiprocessing.Pipe |
+| **Ideal para** | **I/O-bound** | I/O-bound | CPU-bound |
+| **Simplicidade** | **Máxima** | Média | Baixa |
+| **Recomendado** | **✅✅ Sim (padrão)** | ✅ Sim | Para casos específicos |
 
 ## Estrutura do Projeto
 
 ```
 parallelizing-python-migration/
 ├── app.py                      # Script principal
+├── benchmark.py                # Script de benchmark de performance
 ├── background_task.py          # Worker assíncrono
 ├── seed.py                     # Geração de dados de teste
 ├── params.py                   # Configurações e enums
@@ -233,7 +266,7 @@ for data_batch in data_batches:
     await cluster.start_process(data_batch)
 
 # Aguarda conclusão
-cluster.awaiting_completion_processes()
+await cluster.awaiting_completion_processes()
 ```
 
 ## Performance

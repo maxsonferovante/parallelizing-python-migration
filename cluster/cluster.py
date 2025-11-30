@@ -50,12 +50,12 @@ class ClusterMigrationBase(ABC):
         pass
 
     @abstractmethod
-    def awaiting_completion_processes(self):
+    async def awaiting_completion_processes(self):
         """Aguarda todos os workers terminarem."""
         pass
 
     @abstractmethod
-    def _stop_all_workers(self):
+    async def _stop_all_workers(self):
         """Envia sinal de parada para todos os workers."""
         pass
 
@@ -101,14 +101,14 @@ class ClusterMigrationMultiprocessing(ClusterMigrationBase):
         parent_conn = self.__worker_pipes[self._count % len(self.__worker_pipes)]
         parent_conn.send(data)
 
-    def _stop_all_workers(self):
+    async def _stop_all_workers(self):
         """Envia mensagem vazia para todos os processos pararem."""
         for parent_conn in self.__worker_pipes:
             parent_conn.send([])
 
-    def awaiting_completion_processes(self):
+    async def awaiting_completion_processes(self):
         """Aguarda todos os processos terminarem."""
-        self._stop_all_workers()
+        await self._stop_all_workers()
         for proc in self.__processes:
             proc.join()
 
@@ -155,29 +155,82 @@ class ClusterMigrationThreading(ClusterMigrationBase):
         worker_queue = self.__worker_queues[self._count % len(self.__worker_queues)]
         worker_queue.put(data)
 
-    def _stop_all_workers(self):
+    async def _stop_all_workers(self):
         """Envia mensagem vazia para todas as threads pararem."""
         for worker_queue in self.__worker_queues:
             worker_queue.put([])
 
-    def awaiting_completion_processes(self):
+    async def awaiting_completion_processes(self):
         """Aguarda todas as threads terminarem."""
-        self._stop_all_workers()
+        await self._stop_all_workers()
         for thread in self.__threads:
             thread.join()
+
+
+class ClusterMigrationAsyncio(ClusterMigrationBase):
+    """
+    Implementação de cluster usando apenas asyncio.
+    Ideal para tarefas I/O-bound, com menor overhead e máxima simplicidade.
+    Todas as tasks rodam no mesmo event loop.
+    """
+
+    def __init__(self, backend_task: Callable, cluster_size: int):
+        super().__init__(backend_task, cluster_size)
+        self.__worker_queues: list[asyncio.Queue] = []
+        self.__worker_tasks: list[asyncio.Task] = []
+
+    async def initialize_processes(self):
+        """Inicializa as tasks assíncronas workers."""
+        logging.info(f"Initializing {self.cluster_size} asyncio tasks")
+        
+        for index in range(self.cluster_size):
+            # Cria uma queue assíncrona para cada worker
+            data_queue = asyncio.Queue()
+            
+            # Cria uma task assíncrona que roda o backend_task
+            task = asyncio.create_task(
+                self.backend_task(data_queue),
+                name=f"worker-{index + 1}"
+            )
+            
+            self.__worker_queues.append(data_queue)
+            self.__worker_tasks.append(task)
+        
+        # Pequeno delay para garantir que todas as tasks iniciaram
+        await asyncio.sleep(0.1)
+
+    def _send_data_to_worker(self, data):
+        """Envia dados para um worker usando round-robin."""
+        # Seleciona a queue do worker usando round-robin
+        worker_queue = self.__worker_queues[
+            self._count % len(self.__worker_queues)
+        ]
+        # Put_nowait é não-bloqueante e adequado para este caso
+        worker_queue.put_nowait(data)
+
+    async def _stop_all_workers(self):
+        """Envia mensagem vazia para todos os workers pararem."""
+        for worker_queue in self.__worker_queues:
+            await worker_queue.put([])
+
+    async def awaiting_completion_processes(self):
+        """Aguarda todas as tasks terminarem."""
+        await self._stop_all_workers()
+        # Aguarda todas as tasks completarem
+        await asyncio.gather(*self.__worker_tasks, return_exceptions=True)
 
 
 class ClusterMigrationFactory:
     """
     Factory para criar instâncias de ClusterMigration.
-    Suporta 'multiprocessing' e 'threading'.
+    Suporta 'multiprocessing', 'threading' e 'asyncio'.
     """
 
     @staticmethod
     def create(
         backend_task: Callable,
         cluster_size: int,
-        implementation: Union[ClusterImplementation, str] = ClusterImplementation.MULTIPROCESSING
+        implementation: Union[ClusterImplementation, str] = ClusterImplementation.ASYNCIO
     ) -> ClusterMigrationBase:
         """
         Cria uma instância de ClusterMigration baseada no tipo especificado.
@@ -185,7 +238,7 @@ class ClusterMigrationFactory:
         Args:
             backend_task: Função async a ser executada pelos workers
             cluster_size: Número de workers
-            implementation: ClusterImplementation enum ou string ('multiprocessing' ou 'threading')
+            implementation: ClusterImplementation enum ou string ('multiprocessing', 'threading' ou 'asyncio')
 
         Returns:
             Instância de ClusterMigrationBase
@@ -203,9 +256,11 @@ class ClusterMigrationFactory:
             return ClusterMigrationMultiprocessing(backend_task, cluster_size)
         elif implementation_value == "threading":
             return ClusterMigrationThreading(backend_task, cluster_size)
+        elif implementation_value == "asyncio":
+            return ClusterMigrationAsyncio(backend_task, cluster_size)
         else:
             raise ValueError(
                 f"Implementação '{implementation_value}' não suportada. "
                 "Use ClusterImplementation.MULTIPROCESSING, ClusterImplementation.THREADING, "
-                "'multiprocessing' ou 'threading'."
+                "ClusterImplementation.ASYNCIO, ou strings correspondentes."
             )

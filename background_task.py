@@ -6,15 +6,15 @@ from models.settings.postgres.connection import PostgresConnectionHandler
 from models.repository.user_postgres_repository import UserPostgresRepository
 
 
-async def backend_task(communication_channel: Union[Any, queue.Queue]):
+async def backend_task(communication_channel: Union[Any, queue.Queue, asyncio.Queue]):
     """
     Perform a background task to insert user data into a PostgreSQL database.
     Otimizado para usar conexão persistente e inserção em massa (bulk insert).
-    Suporta tanto multiprocessing.Pipe quanto queue.Queue (threading).
+    Suporta multiprocessing.Pipe, queue.Queue (threading) e asyncio.Queue (asyncio).
 
     Args:
-        communication_channel: Pode ser um multiprocessing.Pipe ou queue.Queue
-                              para comunicação com o processo/thread pai.
+        communication_channel: Pode ser um multiprocessing.Pipe, queue.Queue
+                              ou asyncio.Queue para comunicação.
 
     Returns:
         None
@@ -28,19 +28,19 @@ async def backend_task(communication_channel: Union[Any, queue.Queue]):
     conn = connection.get_connection()
     repository = UserPostgresRepository(conn)
 
-    # Detecta o tipo de canal de comunicação
-    is_queue = isinstance(communication_channel, queue.Queue)
-
     try:
         while True:
-            # Recebe mensagem do canal (operação bloqueante executada em executor)
-            if is_queue:
-                # Para threading: usa queue.Queue.get()
+            # Detecta o tipo de canal e recebe mensagem
+            if isinstance(communication_channel, asyncio.Queue):
+                # Para asyncio: usa await diretamente (nativo assíncrono)
+                message = await communication_channel.get()
+            elif isinstance(communication_channel, queue.Queue):
+                # Para threading: usa executor (operação bloqueante)
                 message = await asyncio.get_event_loop().run_in_executor(
                     None, communication_channel.get
                 )
             else:
-                # Para multiprocessing: usa Pipe.recv()
+                # Para multiprocessing: usa executor (operação bloqueante)
                 message = await asyncio.get_event_loop().run_in_executor(
                     None, communication_channel.recv
                 )
